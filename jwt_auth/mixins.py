@@ -1,9 +1,9 @@
 from django.http import HttpResponse
-
-import jwt
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from django.utils.translation import ugettext as _
 
+import jwt
 from jwt_auth import settings, exceptions
 from jwt_auth.utils import get_authorization_header
 from jwt_auth.compat import json, smart_text, User
@@ -24,6 +24,7 @@ class JSONWebTokenAuthMixin(object):
         Authorization: JWT eyJhbGciOiAiSFMyNTYiLCAidHlwIj
     """
     www_authenticate_realm = 'api'
+    payload = None
 
     @method_decorator(csrf_exempt)
     def dispatch(self, request, *args, **kwargs):
@@ -51,23 +52,20 @@ class JSONWebTokenAuthMixin(object):
             raise exceptions.AuthenticationFailed()
 
         if len(auth) == 1:
-            msg = 'Invalid Authorization header. No credentials provided.'
-            raise exceptions.AuthenticationFailed(msg)
+            raise exceptions.AuthenticationFailed(
+                _('Invalid Authorization header. No credentials provided.')
+            )
         elif len(auth) > 2:
-            msg = ('Invalid Authorization header. Credentials string '
-                   'should not contain spaces.')
-            raise exceptions.AuthenticationFailed(msg)
-
+            raise exceptions.AuthenticationFailed(
+                _('Invalid Authorization header. Credentials string should not contain spaces.'))
         try:
-            payload = jwt_decode_handler(auth[1])
+            self.payload = jwt_decode_handler(auth[1])
         except jwt.ExpiredSignature:
-            msg = 'Signature has expired.'
-            raise exceptions.AuthenticationFailed(msg)
+            raise exceptions.AuthenticationFailed(_('Signature has expired.'))
         except jwt.DecodeError:
-            msg = 'Error decoding signature.'
-            raise exceptions.AuthenticationFailed(msg)
+            raise exceptions.AuthenticationFailed(_('Error decoding signature.'))
 
-        user = self.authenticate_credentials(payload)
+        user = self.authenticate_credentials(self.payload)
 
         return (user, auth[1])
 
@@ -81,11 +79,9 @@ class JSONWebTokenAuthMixin(object):
             if user_id:
                 user = User.objects.get(pk=user_id, is_active=True)
             else:
-                msg = 'Invalid payload'
-                raise exceptions.AuthenticationFailed(msg)
+                raise exceptions.AuthenticationFailed(_('Invalid payload'))
         except User.DoesNotExist:
-            msg = 'Invalid signature'
-            raise exceptions.AuthenticationFailed(msg)
+            raise exceptions.AuthenticationFailed(_('Invalid signature'))
 
         return user
 

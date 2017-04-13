@@ -3,6 +3,7 @@ from datetime import datetime
 
 from django import forms
 from django.contrib.auth import authenticate
+from django.utils.translation import ugettext as _
 
 from jwt_auth import settings
 from jwt_auth.compat import User
@@ -42,8 +43,7 @@ class JSONWebTokenForm(forms.Form):
 
             if user:
                 if not user.is_active:
-                    msg = 'User account is disabled.'
-                    raise forms.ValidationError(msg)
+                    raise forms.ValidationError(_('User account is disabled.'))
 
                 payload = jwt_payload_handler(user)
 
@@ -58,8 +58,6 @@ class JSONWebTokenForm(forms.Form):
                     'token': jwt_encode_handler(payload)
                 }
             else:
-                msg = 'Unable to login with provided credentials.'
-                raise forms.ValidationError(msg)
+                raise forms.ValidationError(_('Unable to login with provided credentials.'))
         else:
-            msg = 'Must include "username" and "password"'
-            raise forms.ValidationError(msg)
+            raise forms.ValidationError(_('Must include "username" and "password"'))
