@@ -56,7 +56,7 @@ class ObtainJSONWebToken(BaseJSONWebToken, View):
 
         return self.render_response({
             'token': form.object['token'],
-            'expiresIn': settings.JWT_EXPIRATION_DELTA
+            'expiresIn': settings.JWT_EXPIRATION_DELTA.total_seconds()
         })
 
 
@@ -90,7 +90,7 @@ class RefreshJSONWebToken(JSONWebTokenAuthMixin, BaseJSONWebToken, View):
 
         return self.render_response({
             'token': jwt_encode_handler(new_payload),
-            'expiresIn': settings.JWT_EXPIRATION_DELTA
+            'expiresIn': settings.JWT_EXPIRATION_DELTA.total_seconds()
         })
 
 
