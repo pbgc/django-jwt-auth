@@ -71,8 +71,8 @@ class RefreshJSONWebToken(JSONWebTokenAuthMixin, BaseJSONWebToken, View):
         return super(RefreshJSONWebToken, self).dispatch(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-        # Get and check 'orig_iat'
-        orig_iat = self.payload.get('orig_iat')
+        # Get and check 'iat'
+        orig_iat = self.payload.get('iat')
         if orig_iat:
             # Verify expiration
             refresh_limit = settings.JWT_REFRESH_EXPIRATION_DELTA
@@ -83,10 +83,10 @@ class RefreshJSONWebToken(JSONWebTokenAuthMixin, BaseJSONWebToken, View):
             if now_timestamp > expiration_timestamp:
                 return self.render_bad_request_response({'errors': _('Refresh has expired.')})
         else:
-            return self.render_bad_request_response({'errors': _('orig_iat field is required.')})
+            return self.render_bad_request_response({'errors': _('iat field is required.')})
 
         new_payload = jwt_payload_handler(request.user)
-        new_payload['orig_iat'] = orig_iat
+        new_payload['iat'] = orig_iat
 
         return self.render_response({
             'token': jwt_encode_handler(new_payload),

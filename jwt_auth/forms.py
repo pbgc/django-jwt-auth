@@ -50,7 +50,7 @@ class JSONWebTokenForm(forms.Form):
                 # Include original issued at time for a brand new token,
                 # to allow token refresh
                 if settings.JWT_ALLOW_REFRESH:
-                    payload['orig_iat'] = timegm(
+                    payload['iat'] = timegm(
                         datetime.utcnow().utctimetuple()
                     )
 
