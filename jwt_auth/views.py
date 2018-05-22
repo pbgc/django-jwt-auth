@@ -54,6 +54,14 @@ class ObtainJSONWebToken(BaseJSONWebToken, View):
         if not form.is_valid():
             return self.render_bad_request_response({'errors': form.errors})
 
+        # put the user in the request
+        # this is to enable login loggin for example
+        # wrapping this view with another by doing
+        # response = obtain_jwt_token(request)
+        # ..... log using request.user
+        # return response
+        request.user = form.user
+
         return self.render_response({
             'token': form.object['token'],
             'expiresIn': settings.JWT_EXPIRATION_DELTA.total_seconds()

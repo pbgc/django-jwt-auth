@@ -57,6 +57,9 @@ class JSONWebTokenForm(forms.Form):
                 self.object = {
                     'token': jwt_encode_handler(payload)
                 }
+
+                self.user = user
+
             else:
                 raise forms.ValidationError(_('Unable to login with provided credentials.'))
         else:
