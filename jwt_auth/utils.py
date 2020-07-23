@@ -1,24 +1,77 @@
-from __future__ import unicode_literals
 from datetime import datetime
 import importlib
 
+from django.contrib.auth import get_user_model
+
+try:
+    import redis
+except ImportError:
+    redis = None
+
 import jwt
+
+from . import settings
+
+
+def blacklist_token(token):
+    if redis is not None:
+        try:
+            r = redis.Redis(
+                host=settings.JWT_REDIS_HOST,
+                port=settings.JWT_REDIS_PORT,
+                db=settings.JWT_REDIS_DB
+            )
+            r.setex(
+                token,
+                settings.JWT_EXPIRATION_DELTA,
+                value="EXPIRED"
+            )
+        except Exception as e:
+            print(e)
+
+
+def is_token_blacklisted(token):
+    if redis is not None:
+        try:
+            r = redis.Redis(
+                host=settings.JWT_REDIS_HOST,
+                port=settings.JWT_REDIS_PORT,
+                db=settings.JWT_REDIS_DB
+            )
+            return r.get(token) is not None
+        except Exception as e:
+            print(e)
+    return False
 
 
 def jwt_payload_handler(user):
-    from jwt_auth import settings
 
     try:
         username = user.get_username()
     except AttributeError:
         username = user.username
 
-    return {
-        'user_id': user.pk,
-        'email': user.email,
-        'username': username,
-        'exp': datetime.utcnow() + settings.JWT_EXPIRATION_DELTA
+    try:
+        username_field = get_user_model().USERNAME_FIELD
+    except AttributeError:
+        username_field = 'username'
+
+    payload = {
+        "user_id": user.pk,
+        username_field: username,
+        "exp": datetime.utcnow() + settings.JWT_EXPIRATION_DELTA
     }
+
+    if hasattr(user, 'email'):
+        payload['email'] = user.email
+
+    if settings.JWT_AUDIENCE is not None:
+        payload['aud'] = settings.JWT_AUDIENCE
+
+    if settings.JWT_ISSUER is not None:
+        payload['iss'] = settings.JWT_ISSUER
+
+    return payload
 
 
 def jwt_get_user_id_from_payload_handler(payload):
@@ -30,28 +83,29 @@ def jwt_get_user_id_from_payload_handler(payload):
 
 
 def jwt_encode_handler(payload):
-    from jwt_auth import settings
-
+    key = settings.JWT_PRIVATE_KEY or settings.JWT_SECRET_KEY
     return jwt.encode(
         payload,
-        settings.JWT_SECRET_KEY,
+        key,
         settings.JWT_ALGORITHM
     ).decode('utf-8')
 
 
 def jwt_decode_handler(token):
-    from jwt_auth import settings
 
     options = {
         'verify_exp': settings.JWT_VERIFY_EXPIRATION,
     }
-
+    key = settings.JWT_PUBLIC_KEY or settings.JWT_SECRET_KEY
     return jwt.decode(
         token,
-        settings.JWT_SECRET_KEY,
+        key,
         settings.JWT_VERIFY,
         options=options,
-        leeway=settings.JWT_LEEWAY
+        leeway=settings.JWT_LEEWAY,
+        audience=settings.JWT_AUDIENCE,
+        issuer=settings.JWT_ISSUER,
+        algorithms=[settings.JWT_ALGORITHM]
     )
 
 

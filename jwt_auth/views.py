@@ -1,17 +1,17 @@
+import json
 from datetime import datetime, timedelta
-from calendar import timegm
 
 from django.utils.translation import ugettext as _
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import View
-from django.core.serializers.json import DjangoJSONEncoder
+from django.contrib.auth.signals import user_logged_in
 
 from jwt_auth import settings
-from jwt_auth.compat import json, smart_text
 from jwt_auth.forms import JSONWebTokenForm
 from jwt_auth.mixins import JSONWebTokenAuthMixin
+from jwt_auth.utils import blacklist_token
 
 jwt_decode_handler = settings.JWT_DECODE_HANDLER
 jwt_get_user_id_from_payload = settings.JWT_PAYLOAD_GET_USER_ID_HANDLER
@@ -19,64 +19,67 @@ jwt_payload_handler = settings.JWT_PAYLOAD_HANDLER
 jwt_encode_handler = settings.JWT_ENCODE_HANDLER
 
 
-class BaseJSONWebToken(object):
-    json_encoder_class = DjangoJSONEncoder
-
-    def render_response(self, context_dict):
-        json_context = json.dumps(context_dict, cls=self.json_encoder_class)
-        return HttpResponse(json_context, content_type='application/json')
-
-    def render_bad_request_response(self, error_dict=None):
-        if error_dict is None:
-            error_dict = self.error_response_dict
-
-        json_context = json.dumps(error_dict, cls=self.json_encoder_class)
-
-        return HttpResponseBadRequest(json_context, content_type='application/json')
-
-
-class ObtainJSONWebToken(BaseJSONWebToken, View):
+@method_decorator(csrf_exempt, name='dispatch')
+class ObtainJSONWebToken(View):
     http_method_names = ['post']
     error_response_dict = {'errors': [_('Improperly formatted request')]}
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super(ObtainJSONWebToken, self).dispatch(request, *args, **kwargs)
-
     def post(self, request, *args, **kwargs):
         try:
-            request_json = json.loads(smart_text(request.body))
+            request_json = json.loads(request.body.decode("utf-8"))
         except ValueError:
-            return self.render_bad_request_response()
+            return JsonResponse({'errors': [_('Improperly formatted request')]}, status=400)
 
         form = JSONWebTokenForm(request_json)
 
         if not form.is_valid():
-            return self.render_bad_request_response({'errors': form.errors})
+            return JsonResponse({'errors': form.errors}, status=400)
+
+        user = form.cleaned_data["user"]
+        payload = jwt_payload_handler(user)
+
+        # Include original issued at time for a brand new token,
+        # to allow token refresh
+        if settings.JWT_ALLOW_REFRESH:
+            payload['iat'] = datetime.utcnow().timestamp()
+
+        token = jwt_encode_handler(payload)
 
         # put the user in the request
-        # this is to enable login loggin for example
+        # this is to enable login loging for example
         # wrapping this view with another by doing
         # response = obtain_jwt_token(request)
         # ..... log using request.user
         # return response
-        request.user = form.user
+        request.user = user
+        # Update last_login on sucessful authentication
+        user_logged_in.send(sender=user.__class__, request=None, user=user)
 
-        return self.render_response({
-            'token': form.object['token'],
+        response = JsonResponse({
+            'token': token,
             'expiresIn': settings.JWT_EXPIRATION_DELTA.total_seconds()
         })
+
+        if settings.JWT_AUTH_COOKIE is not None:
+            expiration = datetime.utcnow() + settings.JWT_EXPIRATION_DELTA
+            response.set_cookie(
+                settings.JWT_AUTH_COOKIE,
+                token,
+                max_age=None,
+                expires=expiration,
+                httponly=True,
+                # samesite="Strict"
+            )
+
+        return response
 
 
 obtain_jwt_token = ObtainJSONWebToken.as_view()
 
 
-class RefreshJSONWebToken(JSONWebTokenAuthMixin, BaseJSONWebToken, View):
+@method_decorator(csrf_exempt, name='dispatch')
+class RefreshJSONWebToken(JSONWebTokenAuthMixin, View):
     http_method_names = ['post']
-
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super(RefreshJSONWebToken, self).dispatch(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
         # Get and check 'iat'
@@ -87,19 +90,49 @@ class RefreshJSONWebToken(JSONWebTokenAuthMixin, BaseJSONWebToken, View):
             if isinstance(refresh_limit, timedelta):
                 refresh_limit = (refresh_limit.days * 24 * 3600 + refresh_limit.seconds)
             expiration_timestamp = orig_iat + int(refresh_limit)
-            now_timestamp = timegm(datetime.utcnow().utctimetuple())
+            now_timestamp = datetime.utcnow().timestamp()
             if now_timestamp > expiration_timestamp:
-                return self.render_bad_request_response({'errors': _('Refresh has expired.')})
+                return JsonResponse({'errors': _('Refresh has expired.')}, status=400)
         else:
-            return self.render_bad_request_response({'errors': _('iat field is required.')})
+            return JsonResponse({'errors': _('iat field is required.')}, status=400)
 
         new_payload = jwt_payload_handler(request.user)
         new_payload['iat'] = orig_iat
 
-        return self.render_response({
-            'token': jwt_encode_handler(new_payload),
+        token = jwt_encode_handler(new_payload)
+        response = JsonResponse({
+            'token': token,
             'expiresIn': settings.JWT_EXPIRATION_DELTA.total_seconds()
         })
+        if settings.JWT_AUTH_COOKIE is not None:
+            expiration = datetime.utcnow() + settings.JWT_EXPIRATION_DELTA
+            response.set_cookie(
+                settings.JWT_AUTH_COOKIE,
+                token,
+                max_age=None,
+                expires=expiration,
+                httponly=True
+            )
+        return response
 
 
 refresh_jwt_token = RefreshJSONWebToken.as_view()
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class InvalidateJSONWebToken(View):
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        try:
+            token = JSONWebTokenAuthMixin.get_jwt_value(request)
+            blacklist_token(token)
+        except Exception as e:
+            print(e)
+        response = JsonResponse({})
+        if settings.JWT_AUTH_COOKIE is not None:
+            response.delete_cookie(settings.JWT_AUTH_COOKIE)
+        return response
+
+
+invalidate_jwt_token = InvalidateJSONWebToken.as_view()
