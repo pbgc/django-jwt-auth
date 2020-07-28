@@ -126,7 +126,8 @@ class InvalidateJSONWebToken(View):
     def post(self, request, *args, **kwargs):
         try:
             token = JSONWebTokenAuthMixin.get_jwt_value(request)
-            blacklist_token(token)
+            if token is not None:
+                blacklist_token(token)
         except Exception as e:
             print(e)
         response = JsonResponse({})

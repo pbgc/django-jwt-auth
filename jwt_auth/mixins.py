@@ -65,7 +65,7 @@ class JSONWebTokenAuthMixin(object):
 
     def authenticate(self, request):
         jwt_value = JSONWebTokenAuthMixin.get_jwt_value(request)
-        if is_token_blacklisted(jwt_value):
+        if jwt_value is not None and is_token_blacklisted(jwt_value):
             raise exceptions.AuthenticationFailed(_('Invalid Token!'))
         try:
             self.payload = jwt_decode_handler(jwt_value)
