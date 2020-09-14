@@ -46,8 +46,10 @@ class JSONWebTokenAuthMixin(object):
 
         if not auth:
             if settings.JWT_AUTH_COOKIE:
-                return request.COOKIES.get(settings.JWT_AUTH_COOKIE)
-            raise exceptions.AuthenticationFailed()
+                auth = request.COOKIES.get(settings.JWT_AUTH_COOKIE, None)
+                if auth is not None:
+                    return auth
+            raise exceptions.AuthenticationFailed(_("Invalid authorization data."))
 
         if auth[0].lower().decode("utf-8") != auth_header_prefix:
             raise exceptions.AuthenticationFailed()

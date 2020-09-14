@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-07-21 15:36+0100\n"
+"POT-Creation-Date: 2020-08-20 18:00+0100\n"
 "PO-Revision-Date: 2020-07-21 15:42+0100\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -33,33 +33,37 @@ msgstr "Não foi possível efectuar o login com as credenciais indicadas"
 msgid "Must include \"username\" and \"password\""
 msgstr "Necessário incluir o \"utilizador\" e a \"password\""
 
-#: jwt_auth/mixins.py:56
+#: jwt_auth/mixins.py:52
+msgid "Invalid authorization data."
+msgstr "Dados de autorização inválidos"
+
+#: jwt_auth/mixins.py:59
 msgid "Invalid Authorization header. No credentials provided."
 msgstr "Header de autorização inválido. Sem credenciais"
 
-#: jwt_auth/mixins.py:60
+#: jwt_auth/mixins.py:63
 msgid ""
 "Invalid Authorization header. Credentials string should not contain spaces."
 msgstr "Header de autorização inválido. Credenciais não podem conter espaços"
 
-#: jwt_auth/mixins.py:68
+#: jwt_auth/mixins.py:71
 #, fuzzy
 msgid "Invalid Token!"
 msgstr "Token Inválido!"
 
-#: jwt_auth/mixins.py:72
+#: jwt_auth/mixins.py:75
 msgid "Signature has expired."
 msgstr "A assinatura digital expirou"
 
-#: jwt_auth/mixins.py:74
+#: jwt_auth/mixins.py:77
 msgid "Error decoding signature."
 msgstr "Erro a decodificar a assinatura digital"
 
-#: jwt_auth/mixins.py:89
+#: jwt_auth/mixins.py:92
 msgid "Invalid payload"
 msgstr "Dados inválidos"
 
-#: jwt_auth/mixins.py:91
+#: jwt_auth/mixins.py:94
 msgid "Invalid signature"
 msgstr "Assinatura digital inválida"
 
@@ -67,11 +71,11 @@ msgstr "Assinatura digital inválida"
 msgid "Improperly formatted request"
 msgstr "Request mal formatada"
 
-#: jwt_auth/views.py:94
+#: jwt_auth/views.py:95
 msgid "Refresh has expired."
 msgstr "O tempo de Refresh expirou"
 
-#: jwt_auth/views.py:96
+#: jwt_auth/views.py:97
 #, fuzzy
 msgid "iat field is required."
 msgstr "O campo iat é necessário"
